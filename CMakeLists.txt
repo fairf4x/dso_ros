@@ -2,10 +2,12 @@ cmake_minimum_required(VERSION 2.4.6)
 project(dso_ros)
 
 find_package(catkin REQUIRED COMPONENTS
+  std_msgs
   geometry_msgs
   roscpp
   sensor_msgs
   cv_bridge
+  tf
 )
 
 set(DSO_PATH $ENV{DSO_PATH})
@@ -37,10 +39,15 @@ catkin_package(
 ###########
 
 set(CMAKE_CXX_FLAGS
-   "${SSE_FLAGS} -O2 -g -std=c++0x -fno-omit-frame-pointer"
+  "${SSE_FLAGS} -O2 -g -std=c++0x -fno-omit-frame-pointer"
+)
+
+set(ros_IOWrapper_source
+  ${PROJECT_SOURCE_DIR}/include/IOWrapper/ROS/ROSOutputPublisher.cpp
 )
 
 include_directories(
+  include
   ${PROJECT_SOURCE_DIR}/src
   ${DSO_PATH}/src
   ${DSO_PATH}/thirdparty/Sophus
@@ -52,7 +59,9 @@ include_directories(
 ## Declare a C++ executable
 add_executable(dso_live src/main.cpp)
 
-target_link_libraries(dso_live
+add_library(ros_IOWrapper ${ros_IOWrapper_source})
+
+target_link_libraries(dso_live ros_IOWrapper
     ${DSO_LIBRARY}
     ${Pangolin_LIBRARIES}
     ${OpenCV_LIBS}

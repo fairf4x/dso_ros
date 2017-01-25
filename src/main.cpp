@@ -31,12 +31,13 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "util/settings.h"
 #include "FullSystem/FullSystem.h"
-#include "util/Undistort.h"
 #include "IOWrapper/Pangolin/PangolinDSOViewer.h"
 #include "IOWrapper/OutputWrapper/SampleOutputWrapper.h"
+#include "IOWrapper/ROS/ROSOutputPublisher.h"
 
+#include "util/settings.h"
+#include "util/Undistort.h"
 
 #include <ros/ros.h>
 #include <sensor_msgs/image_encodings.h>
@@ -206,21 +207,20 @@ int main( int argc, char** argv )
     fullSystem = new FullSystem();
     fullSystem->linearizeOperation=false;
 
+    ros::NodeHandle nh;
 
     if(!disableAllDisplay)
+    {
 	    fullSystem->outputWrapper.push_back(new IOWrap::PangolinDSOViewer(
 	    		 (int)undistorter->getSize()[0],
 	    		 (int)undistorter->getSize()[1]));
 
-
-    if(useSampleOutput)
-        fullSystem->outputWrapper.push_back(new IOWrap::SampleOutputWrapper());
-
+	    fullSystem->outputWrapper.push_back(new IOWrap::ROSOutputPublisher(nh));
+    }
 
     if(undistorter->photometricUndist != 0)
     	fullSystem->setGammaFunction(undistorter->photometricUndist->getG());
 
-    ros::NodeHandle nh;
     ros::Subscriber imgSub = nh.subscribe("image", 1, &vidCb);
 
     ros::spin();
