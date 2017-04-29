@@ -71,7 +71,7 @@ ROSOutputPublisher::~ROSOutputPublisher()
 void ROSOutputPublisher::publishGraph(
     const std::map<long, Eigen::Vector2i>& connectivity)
 {
-  printf("OUT: got graph with %d edges\n", (int)connectivity.size());
+  /*printf("OUT: got graph with %d edges\n", (int)connectivity.size());
 
   int maxWrite = 5;
 
@@ -83,13 +83,13 @@ void ROSOutputPublisher::publishGraph(
     maxWrite--;
     if (maxWrite == 0)
       break;
-  }
+  }*/
 }
 
 void ROSOutputPublisher::publishKeyframes(std::vector<FrameHessian*>& frames,
                                           bool final, CalibHessian* HCalib)
 {
-  for (FrameHessian* f : frames) {
+  /*for (FrameHessian* f : frames) {
     printf("OUT: KF %d (%s) (id %d, tme %f): %d active, %d marginalized, %d "
            "immature points. CameraToWorld:\n",
            f->frameID, final ? "final" : "non-final", f->shell->incoming_id,
@@ -108,18 +108,18 @@ void ROSOutputPublisher::publishKeyframes(std::vector<FrameHessian*>& frames,
       if (maxWrite == 0)
         break;
     }
-  }
+  }*/
 }
 
 void ROSOutputPublisher::publishCamPose(FrameShell* frame, CalibHessian* HCalib)
 {
-  tf::StampedTransform tf_odom_base;
+  //tf::StampedTransform tf_odom_base;
   tf::StampedTransform tf_base_cam;
   try {
-    tf_list.waitForTransform(base_frame_id, odom_frame_id, ros::Time(0),
-                             ros::Duration(10.0));
-    tf_list.lookupTransform(base_frame_id, odom_frame_id, ros::Time(0),
-                            tf_odom_base);
+    //tf_list.waitForTransform(base_frame_id, odom_frame_id, ros::Time(0),
+    //                         ros::Duration(10.0));
+   // tf_list.lookupTransform(base_frame_id, odom_frame_id, ros::Time(0),
+   //                         tf_odom_base);
     tf_list.waitForTransform(camera_frame_id, base_frame_id, ros::Time(0),
                              ros::Duration(10.0));
     tf_list.lookupTransform(camera_frame_id, base_frame_id, ros::Time(0),
@@ -171,12 +171,12 @@ world->cam based on frame->camToWorld.matrix3x4()
 
   transform.setRotation(q);
   tf::Transform tf_dso_base = transform * tf_base_cam.inverse();
-  tf::Transform tf_dso_odom = tf_dso_base * tf_odom_base.inverse();
+  //tf::Transform tf_dso_odom = tf_dso_base * tf_odom_base.inverse();
   br.sendTransform(tf::StampedTransform(transform, ros::Time::now(),
                                         dso_frame_id, odom_frame_id));
 
-  ROS_INFO_STREAM("ROSOutputPublisher:" << base_frame_id << "->" << dso_frame_id
-                                        << " tf broadcasted");
+  //ROS_INFO_STREAM("ROSOutputPublisher:" << base_frame_id << "->" << dso_frame_id
+  //                                      << " tf broadcasted");
   nav_msgs::Odometry odom;
   odom.header.stamp = ros::Time::now();
   odom.header.frame_id = dso_frame_id;
@@ -205,7 +205,7 @@ bool ROSOutputPublisher::needPushDepthImage()
 void ROSOutputPublisher::pushDepthImageFloat(MinimalImageF* image,
                                              FrameHessian* KF)
 {
-  printf("OUT: Predicted depth for KF %d (id %d, time %f, internal frame-ID "
+  /*printf("OUT: Predicted depth for KF %d (id %d, time %f, internal frame-ID "
          "%d). CameraToWorld:\n",
          KF->frameID, KF->shell->incoming_id, KF->shell->timestamp,
          KF->shell->id);
@@ -225,7 +225,7 @@ void ROSOutputPublisher::pushDepthImageFloat(MinimalImageF* image,
     }
     if (maxWrite == 0)
       break;
-  }
+  }*/
 }
 }
 }
