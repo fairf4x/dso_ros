@@ -120,10 +120,10 @@ void ROSOutputPublisher::publishCamPose(FrameShell* frame, CalibHessian* HCalib)
     //                         ros::Duration(10.0));
    // tf_list.lookupTransform(base_frame_id, odom_frame_id, ros::Time(0),
    //                         tf_odom_base);
-    tf_list.waitForTransform(camera_frame_id, base_frame_id, ros::Time(0),
-                             ros::Duration(10.0));
-    tf_list.lookupTransform(camera_frame_id, base_frame_id, ros::Time(0),
-                            tf_base_cam);
+    //tf_list.waitForTransform(camera_frame_id, base_frame_id, ros::Time(0),
+   //                          ros::Duration(10.0));
+   // tf_list.lookupTransform(camera_frame_id, base_frame_id, ros::Time(0),
+   //                         tf_base_cam);
   } catch (tf::TransformException ex) {
     ROS_ERROR_STREAM("DSO_ROS: Not sucessfull in retrieving tf tranform from "
                      << odom_frame_id << "->" << camera_frame_id);
@@ -164,23 +164,36 @@ world->cam based on frame->camToWorld.matrix3x4()
   double camSW = sqrt(std::max(0.0, numW)) / 2;
 
   /* broadcast map -> cam_pose transformation */
-  static tf::TransformBroadcaster br;
-  tf::Transform transform;
-  transform.setOrigin(tf::Vector3(camX, camY, camZ));
-  tf::Quaternion q = tf::Quaternion(camSX, camSY, camSZ, camSW);
+  //static tf::TransformBroadcaster br;
+  //tf::Transform transform;
+  //transform.setOrigin(tf::Vector3(camX, camY, camZ));
+  //tf::Quaternion q = tf::Quaternion(camSX, camSY, camSZ, camSW);
 
-  transform.setRotation(q);
-  tf::Transform tf_dso_base = transform * tf_base_cam.inverse();
+  //transform.setRotation(q);
+  //tf::Transform tf_dso_base = transform * tf_base_cam.inverse();
   //tf::Transform tf_dso_odom = tf_dso_base * tf_odom_base.inverse();
-  br.sendTransform(tf::StampedTransform(transform, ros::Time::now(),
-                                        dso_frame_id, odom_frame_id));
+  //br.sendTransform(tf::StampedTransform(transform, ros::Time::now(),
+  //                                      dso_frame_id, odom_frame_id));
 
   //ROS_INFO_STREAM("ROSOutputPublisher:" << base_frame_id << "->" << dso_frame_id
   //                                      << " tf broadcasted");
+
   nav_msgs::Odometry odom;
   odom.header.stamp = ros::Time::now();
-  odom.header.frame_id = dso_frame_id;
-  tf::poseTFToMsg(tf_dso_base, odom.pose.pose);
+  odom.header.frame_id = odom_frame_id;
+  geometry_msgs::Pose pose;
+  pose.position.x = camX;
+  pose.position.y = camY;
+  pose.position.z = camZ;
+  pose.orientation.x = camSX;
+  pose.orientation.y = camSY;
+  pose.orientation.z = camSZ;
+  pose.orientation.w = camSW;
+
+  odom.pose.pose = pose;
+  //tf::poseTFToMsg(tf_dso_base, odom.pose.pose);
+
+  ROS_INFO("x = %f, y = %f, z = %f", odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z);
   dso_odom_pub.publish(odom);
   /* testing output */
   /*
