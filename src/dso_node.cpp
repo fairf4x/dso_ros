@@ -46,6 +46,8 @@ dso_ros::DsoNode::~DsoNode()
 
 void dso_ros::DsoNode::imageCb(const sensor_msgs::ImageConstPtr &img)
 {
+  dynamic_cast<ROSOutputWrapper *>(full_system_->outputWrapper[0])
+      ->pushTimestamp(img->header.stamp);
   // this is needed to avoid initial freeze of whole algorithm. I don't know why
   // it needs couple initial frames to make reset function.
   if (frame_ID_ == 3) {
@@ -71,6 +73,7 @@ void dso_ros::DsoNode::imageCb(const sensor_msgs::ImageConstPtr &img)
                              (unsigned char *)cv_ptr->image.data);
   std::unique_ptr<dso::ImageAndExposure> undist_img(
       undistorter_->undistort<unsigned char>(&min_img, 1, 0, 1.0f));
+  undist_img->timestamp = img->header.stamp.toSec();
   full_system_->addActiveFrame(undist_img.get(), frame_ID_);
   ++frame_ID_;
 }
@@ -115,12 +118,13 @@ void dso_ros::DsoNode::initParams()
 
 void dso_ros::DsoNode::initIOWrappers()
 {
+  full_system_->outputWrapper.push_back(
+      new dso_ros::ROSOutputWrapper(nh_, nh_private_));
+
   if (display_GUI_) {
     full_system_->outputWrapper.push_back(new dso::IOWrap::PangolinDSOViewer(
         (int)undistorter_->getSize()[0], (int)undistorter_->getSize()[1]));
   }
-  full_system_->outputWrapper.push_back(
-      new dso_ros::ROSOutputWrapper(nh_, nh_private_));
 }
 
 void dso_ros::DsoNode::reset()

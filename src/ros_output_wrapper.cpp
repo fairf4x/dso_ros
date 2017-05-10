@@ -23,6 +23,10 @@ ROSOutputWrapper::ROSOutputWrapper(ros::NodeHandle& n,
   dso_odom_pub_ = n.advertise<nav_msgs::Odometry>("odom", 5, false);
   dso_depht_image_pub_ =
       n.advertise<sensor_msgs::Image>("image_rect", 5, false);
+
+  last_pose_.setIdentity();
+  pose_.setIdentity();
+  reset_ = false;
 }
 
 ROSOutputWrapper::~ROSOutputWrapper()
@@ -62,18 +66,24 @@ void ROSOutputWrapper::publishCamPose(dso::FrameShell* frame,
   tf::StampedTransform tf_odom_base;
   tf::StampedTransform tf_base_cam;
   try {
-    tf_list_.waitForTransform(odom_frame_id_, base_frame_id_, ros::Time::now(),
-                              ros::Duration(1.0));
-    tf_list_.lookupTransform(odom_frame_id_, base_frame_id_, ros::Time::now(),
+    tf_list_.waitForTransform(odom_frame_id_, base_frame_id_, timestamp_,
+                              ros::Duration(5.0));
+    tf_list_.lookupTransform(odom_frame_id_, base_frame_id_, timestamp_,
                              tf_odom_base);
 
-    tf_list_.waitForTransform(base_frame_id_, camera_frame_id_,
-                              ros::Time::now(), ros::Duration(1.0));
-    tf_list_.lookupTransform(base_frame_id_, camera_frame_id_, ros::Time::now(),
+  } catch (...) {
+    ROS_ERROR_STREAM("DSO_ROS: Not sucessfull in retrieving tf tranform from"
+                     << odom_frame_id_ << "->" << base_frame_id_);
+    return;
+  }
+  try {
+    tf_list_.waitForTransform(base_frame_id_, camera_frame_id_, timestamp_,
+                              ros::Duration(5.0));
+    tf_list_.lookupTransform(base_frame_id_, camera_frame_id_, timestamp_,
                              tf_base_cam);
   } catch (...) {
     ROS_ERROR_STREAM("DSO_ROS: Not sucessfull in retrieving tf tranform from"
-                     << odom_frame_id_ << "->" << camera_frame_id_);
+                     << base_frame_id_ << "->" << camera_frame_id_);
     return;
   }
 
@@ -113,20 +123,38 @@ void ROSOutputWrapper::publishCamPose(dso::FrameShell* frame,
 
   /* broadcast map -> cam_pose transformation */
   static tf::TransformBroadcaster br;
-  tf::Transform transform;
-  transform.setOrigin(tf::Vector3(camX, camY, camZ));
+  tf::Transform current_pose;
+  current_pose.setOrigin(tf::Vector3(camX, camY, camZ));
   tf::Quaternion q = tf::Quaternion(camSX, camSY, camSZ, camSW);
+  current_pose.setRotation(q);
 
-  transform.setRotation(q);
-  tf::Transform tf_dso_base = transform * tf_base_cam.inverse();
+  tf::Transform movement;
+  if (reset_) {
+    // this part is needed in case that reset was called
+    reset_ = false;
+    last_pose_.setIdentity();
+    movement.setIdentity();
+  } else {
+    last_pose_ = pose_;
+    movement = last_pose_.inverse() * current_pose;
+  }
+  // pose stay same even when system crashes. A relative transformation is hold
+  // in movement.
+  pose_ = pose_ * movement;
+  ROS_ERROR_STREAM("[DSO_NODE]: Current position: "
+                   << pose_.getOrigin().getX() << ", "
+                   << pose_.getOrigin().getY() << ", "
+                   << pose_.getOrigin().getZ());
+
+  tf::Transform tf_dso_base = pose_ * tf_base_cam.inverse();
   tf::Transform tf_dso_odom = tf_dso_base * tf_odom_base.inverse();
-  br.sendTransform(tf::StampedTransform(tf_dso_odom, ros::Time::now(),
-                                        dso_frame_id_, odom_frame_id_));
+  br.sendTransform(tf::StampedTransform(tf_dso_odom, timestamp_, dso_frame_id_,
+                                        odom_frame_id_));
 
   ROS_INFO_STREAM("ROSOutputWrapper:" << base_frame_id_ << "->" << dso_frame_id_
                                       << " tf broadcasted");
   nav_msgs::Odometry odom;
-  odom.header.stamp = ros::Time::now();
+  odom.header.stamp = timestamp_;
   odom.header.frame_id = dso_frame_id_;
   tf::poseTFToMsg(tf_dso_base, odom.pose.pose);
   dso_odom_pub_.publish(odom);
@@ -159,7 +187,7 @@ void ROSOutputWrapper::pushDepthImageFloat(dso::MinimalImageF* image,
   cv::bitwise_not(image_cv, imverted_img);
   std_msgs::Header header;
   header.frame_id = camera_frame_id_;
-  header.stamp = ros::Time::now();
+  header.stamp = timestamp_;
   header.seq = seq_image_;
   ++seq_image_;
   cv_bridge::CvImage bridge_img(header, "mono8", imverted_img);

@@ -70,6 +70,19 @@ public:
 
   virtual void pushDepthImageFloat(dso::MinimalImageF* image,
                                    dso::FrameHessian* KF) override;
+  virtual void reset() override
+  {
+    reset_ = true;
+    ROS_ERROR_STREAM("[DSO_NODE]: RESET Current position: "
+                     << pose_.getOrigin().getX() << ", "
+                     << pose_.getOrigin().getY() << ", "
+                     << pose_.getOrigin().getZ());
+  }
+
+  void pushTimestamp(const ros::Time& time)
+  {
+    timestamp_ = time;
+  }
 
 private:
   /* camera frame id */
@@ -83,7 +96,12 @@ private:
   tf::TransformListener tf_list_;
   tf::TransformBroadcaster tf_broadcast_;
 
+  tf::Transform last_pose_;
+  tf::Transform pose_;
+
   size_t seq_image_;
+  bool reset_;
+  ros::Time timestamp_;
 };
 }
 #endif  // DSO_ROS_ROS_IO_WRAPPER
