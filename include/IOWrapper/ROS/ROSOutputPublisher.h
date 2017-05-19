@@ -23,6 +23,7 @@
 
 #pragma once
 #include "Eigen/Core"
+#include "Eigen/Geometry"
 #include "IOWrapper/Output3DWrapper.h"
 #include "boost/thread.hpp"
 #include "util/MinimalImage.h"
@@ -48,21 +49,8 @@ namespace IOWrap
 {
 class ROSOutputPublisher : public Output3DWrapper
 {
-private:
-  /* TODO publish dso pointcloud */
-
-  /* camera frame id */
-  std::string dso_frame_id;
-  std::string camera_frame_id;
-  std::string odom_frame_id;
-  std::string base_frame_id;
-  /* dso odometry_msg */
-  ros::Publisher dso_odom_pub;
-
-  tf::TransformListener tf_list;
-  tf::TransformBroadcaster tf_broadcast;
-
 public:
+	//EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
   explicit ROSOutputPublisher(ros::NodeHandle dso_node);
 
   virtual ~ROSOutputPublisher();
@@ -72,7 +60,7 @@ public:
   virtual void publishKeyframes(std::vector<FrameHessian*>& frames, bool final,
                                 CalibHessian* HCalib);
 
-  virtual void publishCamPose(FrameShell* frame, CalibHessian* HCalib);
+  virtual void publishCamPose(FrameShell* frame, CalibHessian* HCalib, Eigen::Matrix<Sophus::SE3Group<double>::Scalar, 3, 4>* transformation);
 
   virtual void pushLiveFrame(FrameHessian* image);
 
@@ -81,6 +69,24 @@ public:
   virtual bool needPushDepthImage();
 
   virtual void pushDepthImageFloat(MinimalImageF* image, FrameHessian* KF);
+
+  virtual void printResult(std::string file);
+private:
+  /* TODO publish dso pointcloud */
+
+  /* camera frame id */
+  std::string dso_frame_id;
+  std::string dso_transformed_id;
+  std::string camera_frame_id;
+  std::string odom_frame_id;
+  std::string base_frame_id;
+  /* dso odometry_msg */
+  ros::Publisher dso_odom_pub;
+
+  tf::TransformListener tf_list;
+  tf::TransformBroadcaster tf_broadcast;
+
+  geometry_msgs::Pose lastCamPose;
 };
 }
 }

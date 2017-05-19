@@ -42,6 +42,14 @@ namespace IOWrap
 {
 ROSOutputPublisher::ROSOutputPublisher(ros::NodeHandle dso_node)
 {
+	std::ofstream fileKey;
+	fileKey.open ("/home/harasim/catkin_ws/rosviewer.log");
+	fileKey << std::setprecision(15);
+
+			fileKey << "\n";
+
+	fileKey.close();
+
   ROS_INFO("ROSOutputPublisher created\n");
   if (!dso_node.hasParam("dso_frame_id")) {
     ROS_INFO("No param named world_frame found!");
@@ -49,7 +57,7 @@ ROSOutputPublisher::ROSOutputPublisher(ros::NodeHandle dso_node)
   if (!dso_node.hasParam("camera_frame_id")) {
     ROS_INFO("No param named camera_frame found!");
   }
-  dso_node.param<std::string>("dso_frame_id", dso_frame_id, "dso_odom");
+  dso_node.param<std::string>("dso_frame_id", dso_frame_id, "dso_camera");
   dso_node.param<std::string>("camera_frame_id", camera_frame_id, "camera");
   dso_node.param<std::string>("odom_frame_id", odom_frame_id, "odom");
   dso_node.param<std::string>("base_frame_id", base_frame_id, "base_link");
@@ -61,6 +69,10 @@ ROSOutputPublisher::ROSOutputPublisher(ros::NodeHandle dso_node)
 
   dso_odom_pub =
       dso_node.advertise<nav_msgs::Odometry>("dso_odom_topic", 5, false);
+
+lastCamPose.position.x = 0;
+lastCamPose.position.y = 0;
+lastCamPose.position.z = 0;
 }
 
 ROSOutputPublisher::~ROSOutputPublisher()
@@ -111,25 +123,9 @@ void ROSOutputPublisher::publishKeyframes(std::vector<FrameHessian*>& frames,
   }*/
 }
 
-void ROSOutputPublisher::publishCamPose(FrameShell* frame, CalibHessian* HCalib)
+void ROSOutputPublisher::publishCamPose(FrameShell* frame, CalibHessian* HCalib, Eigen::Matrix<Sophus::SE3Group<double>::Scalar, 3, 4>* transformation)
 {
-  //tf::StampedTransform tf_odom_base;
   tf::StampedTransform tf_base_cam;
-  try {
-    //tf_list.waitForTransform(base_frame_id, odom_frame_id, ros::Time(0),
-    //                         ros::Duration(10.0));
-   // tf_list.lookupTransform(base_frame_id, odom_frame_id, ros::Time(0),
-   //                         tf_odom_base);
-    //tf_list.waitForTransform(camera_frame_id, base_frame_id, ros::Time(0),
-   //                          ros::Duration(10.0));
-   // tf_list.lookupTransform(camera_frame_id, base_frame_id, ros::Time(0),
-   //                         tf_base_cam);
-  } catch (tf::TransformException ex) {
-    ROS_ERROR_STREAM("DSO_ROS: Not sucessfull in retrieving tf tranform from "
-                     << odom_frame_id << "->" << camera_frame_id);
-    ROS_ERROR("%s",ex.what());
-    return;
-  }
 
   /* This function broadcasts tf transformation:
 world->cam based on frame->camToWorld.matrix3x4()
@@ -144,62 +140,89 @@ world->cam based on frame->camToWorld.matrix3x4()
         3x3 matrix with diagonal m00 m11 and m22 is a rotation matrix
         */
 
-  const Eigen::Matrix<Sophus::SE3Group<double>::Scalar, 3, 4> m =
-      frame->camToWorld.matrix3x4();
+/*	std::ofstream fileKey;
+	fileKey.open ("/home/harasim/catkin_ws/rosviewer.log", std::ios_base::app);
+	fileKey << std::setprecision(15);
+
+			fileKey << frame->id <<
+			" " << frame->camToWorld.translation()[0] << 
+			" " << frame->camToWorld.translation()[1] <<
+			" " << frame->camToWorld.translation()[2] << 
+			" " << sizeof frame->camToWorld.translation() << 
+			" " << sizeof frame->camToWorld.translation()[0] << 
+			" " << std::addressof(frame->camToWorld.translation()) << " ";
+
+	long size = sizeof frame->camToWorld.translation();
+	char* buffer = new char[size];
+
+	reinterpret_cast<char*>(std::addressof(frame->camToWorld.translation()));
+
+	for ( unsigned int i = 0; i < size; i++)
+	fileKey << buffer[i];
+
+	fileKey << "\n";
+
+	delete[] buffer;
+	fileKey.close();*/
+
+  Eigen::Matrix<Sophus::SE3Group<double>::Scalar, 3, 4> m = *transformation;
+//double x = frame->camToWorld.translation().x();
+//double y = frame->camToWorld.translation().y();
+//double z = frame->camToWorld.translation().z();
   /* camera position */
   double camX = m(0, 3);
   double camY = m(1, 3);
   double camZ = m(2, 3);
 
-  /* camera orientation */
-  /* http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
-   */
-  double numX = 1 + m(0, 0) - m(1, 1) - m(2, 2);
-  double numY = 1 - m(0, 0) + m(1, 1) - m(2, 2);
-  double numZ = 1 - m(0, 0) - m(1, 1) + m(2, 2);
-  double numW = 1 + m(0, 0) + m(1, 1) + m(2, 2);
-  double camSX = sqrt(std::max(0.0, numX)) / 2;
-  double camSY = sqrt(std::max(0.0, numY)) / 2;
-  double camSZ = sqrt(std::max(0.0, numZ)) / 2;
-  double camSW = sqrt(std::max(0.0, numW)) / 2;
+ROS_INFO("Id = %d, Trans %f, %f, %f",frame->id, m(0, 3),m(1, 3),m(2, 3));
+  //ROS_INFO("Cam to world \n A=%f %f %f %f\n  %f %f %f %f\n  %f %f %f %f",
+	//	m(0,0), m(0,1), m(0,2), m(0,3), 
+	//	m(1,0), m(1,1), m(1,2), m(1,3),
+	//	m(2,0), m(2,1), m(2,2), m(2,3));
+
+  Eigen::Quaterniond qe(m.block<3,3>(0,0));
 
   /* broadcast map -> cam_pose transformation */
-  //static tf::TransformBroadcaster br;
-  //tf::Transform transform;
-  //transform.setOrigin(tf::Vector3(camX, camY, camZ));
-  //tf::Quaternion q = tf::Quaternion(camSX, camSY, camSZ, camSW);
+  static tf::TransformBroadcaster br;
+  tf::Transform transform;
+  transform.setOrigin(tf::Vector3(camX, camY, camZ));
+  tf::Quaternion q = tf::Quaternion(qe.x(), qe.y(), qe.z(), qe.w());
+  transform.setRotation(q);
 
-  //transform.setRotation(q);
-  //tf::Transform tf_dso_base = transform * tf_base_cam.inverse();
-  //tf::Transform tf_dso_odom = tf_dso_base * tf_odom_base.inverse();
-  //br.sendTransform(tf::StampedTransform(transform, ros::Time::now(),
-  //                                      dso_frame_id, odom_frame_id));
-
-  //ROS_INFO_STREAM("ROSOutputPublisher:" << base_frame_id << "->" << dso_frame_id
-  //                                      << " tf broadcasted");
+  br.sendTransform(tf::StampedTransform(transform, ros::Time::now(),
+                                        odom_frame_id, dso_frame_id));
 
   nav_msgs::Odometry odom;
   odom.header.stamp = ros::Time::now();
   odom.header.frame_id = odom_frame_id;
+
   geometry_msgs::Pose pose;
   pose.position.x = camX;
   pose.position.y = camY;
   pose.position.z = camZ;
-  pose.orientation.x = camSX;
-  pose.orientation.y = camSY;
-  pose.orientation.z = camSZ;
-  pose.orientation.w = camSW;
+  pose.orientation.x = qe.x();
+  pose.orientation.y = qe.y();
+  pose.orientation.z = qe.z();
+  pose.orientation.w = qe.w();
 
   odom.pose.pose = pose;
-  //tf::poseTFToMsg(tf_dso_base, odom.pose.pose);
+  odom.twist.twist.linear.x = pose.position.x - lastCamPose.position.x;
+  odom.twist.twist.linear.y = pose.position.y - lastCamPose.position.y;
+  odom.twist.twist.linear.z = pose.position.z - lastCamPose.position.z;
+  //tf::poseTFToMsg(transform.origin(), odom.pose.pose);
 
-  ROS_INFO("x = %f, y = %f, z = %f", odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z);
+  if(!std::isnan(camX)&&!std::isnan(camY)&&!std::isnan(camZ)
+&& !std::isnan(qe.x()) && !std::isnan(qe.y())&& !std::isnan(qe.z())&&!std::isnan(qe.w())
+&&!std::isinf(camX)&&!std::isinf(camY)&&!std::isinf(camZ)
+&& !std::isinf(qe.x()) && !std::isinf(qe.y())&& !std::isinf(qe.z())&&!std::isinf(qe.w()))
+{
   dso_odom_pub.publish(odom);
-  /* testing output */
-  /*
-        std::cout << frame->camToWorld.matrix3x4() << "\n";
-  */
 }
+
+  lastCamPose = pose;
+}
+
+void ROSOutputPublisher::printResult(std::string file) {}
 
 void ROSOutputPublisher::pushLiveFrame(FrameHessian* image)
 {

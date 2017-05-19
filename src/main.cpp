@@ -211,11 +211,14 @@ int main( int argc, char** argv )
 
     if(!disableAllDisplay)
     {
-	    //fullSystem->outputWrapper.push_back(new IOWrap::PangolinDSOViewer(
-	    	//	 (int)undistorter->getSize()[0],
-	    	//	 (int)undistorter->getSize()[1]));
+	    fullSystem->outputWrapper.push_back(new IOWrap::SampleOutputWrapper());
 
 	    fullSystem->outputWrapper.push_back(new IOWrap::ROSOutputPublisher(nh));
+
+	    fullSystem->outputWrapper.push_back(new IOWrap::PangolinDSOViewer(
+	    		 (int)undistorter->getSize()[0],
+	    		 (int)undistorter->getSize()[1]));
+
     }
 
     if(undistorter->photometricUndist != 0)
@@ -225,8 +228,11 @@ int main( int argc, char** argv )
 
     ros::spin();
 
+    fullSystem->printResult("/home/harasim/catkin_ws/log.txt");
+
     for(IOWrap::Output3DWrapper* ow : fullSystem->outputWrapper)
     {
+	ow->printResult("/home/harasim/catkin_ws/wrapper.log");
         ow->join();
         delete ow;
     }
