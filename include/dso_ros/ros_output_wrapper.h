@@ -28,16 +28,19 @@
 #include <IOWrapper/Output3DWrapper.h>
 #include <util/FrameShell.h>
 #include <util/MinimalImage.h>
+#include <util/settings.h>
 
 #include <Eigen/Core>
 
 #include <boost/thread.hpp>
 
 #include <nav_msgs/Odometry.h>
+#include <pcl_conversions/pcl_conversions.h>
 #include <ros/console.h>
 #include <ros/duration.h>
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/image_encodings.h>
 
 #include <tf/transform_broadcaster.h>
@@ -47,10 +50,31 @@
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/core/mat.hpp>
 
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+
 namespace dso_ros
 {
 class ROSOutputWrapper : public dso::IOWrap::Output3DWrapper
 {
+  typedef pcl::PointXYZRGB Point;
+  typedef pcl::PointCloud<Point> PointCloud;
+
+  struct DSOCameraParams {
+    float fxi, fyi, cxi, cyi;
+    DSOCameraParams(dso::CalibHessian* HCalib)
+    {
+      float fx = HCalib->fxl();
+      float fy = HCalib->fyl();
+      float cx = HCalib->cxl();
+      float cy = HCalib->cyl();
+      fxi = 1 / fx;
+      fyi = 1 / fy;
+      cxi = -cx / fx;
+      cyi = -cy / fy;
+    }
+  };
+
 public:
   ROSOutputWrapper(ros::NodeHandle& n, ros::NodeHandle& n_private);
 
@@ -93,6 +117,7 @@ private:
   /* dso odometry_msg */
   ros::Publisher dso_odom_pub_;
   ros::Publisher dso_depht_image_pub_;
+  ros::Publisher pcl_pub_;
   tf::TransformListener tf_list_;
   tf::TransformBroadcaster tf_broadcast_;
 
@@ -102,6 +127,10 @@ private:
   size_t seq_image_;
   bool reset_;
   ros::Time timestamp_;
+  int last_id_;
+
+  std::vector<Point> DSOtoPcl(const dso::PointHessian* pt,
+                              const DSOCameraParams& params) const;
 };
 }
 #endif  // DSO_ROS_ROS_IO_WRAPPER

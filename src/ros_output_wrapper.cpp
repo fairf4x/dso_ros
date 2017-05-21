@@ -23,10 +23,11 @@ ROSOutputWrapper::ROSOutputWrapper(ros::NodeHandle& n,
   dso_odom_pub_ = n.advertise<nav_msgs::Odometry>("odom", 5, false);
   dso_depht_image_pub_ =
       n.advertise<sensor_msgs::Image>("image_rect", 5, false);
-
+  pcl_pub_ = n.advertise<sensor_msgs::PointCloud2>("pcl", 5, false);
   last_pose_.setIdentity();
   pose_.setIdentity();
   reset_ = false;
+  last_id_ = 10;
 }
 
 ROSOutputWrapper::~ROSOutputWrapper()
@@ -37,26 +38,28 @@ ROSOutputWrapper::~ROSOutputWrapper()
 void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian*>& frames,
                                         bool final, dso::CalibHessian* HCalib)
 {
-  for (dso::FrameHessian* f : frames) {
-    printf("OUT: KF %d (%s) (id %d, tme %f): %d active, %d marginalized, %d "
-           "immature points. CameraToWorld:\n",
-           f->frameID, final ? "final" : "non-final", f->shell->incoming_id,
-           f->shell->timestamp, (int)f->pointHessians.size(),
-           (int)f->pointHessiansMarginalized.size(),
-           (int)f->immaturePoints.size());
-    std::cout << f->shell->camToWorld.matrix3x4() << "\n";
-
-    int maxWrite = 5;
-    for (dso::PointHessian* p : f->pointHessians) {
-      printf("OUT: Example Point x=%.1f, y=%.1f, idepth=%f, idepth std.dev. "
-             "%f, %d inlier-residuals\n",
-             p->u, p->v, p->idepth_scaled, sqrt(1.0f / p->idepth_hessian),
-             p->numGoodResiduals);
-      maxWrite--;
-      if (maxWrite == 0)
-        break;
-    }
+  dso::FrameHessian* last_frame = frames.back();
+  if (last_frame->shell->id == last_id_)
+    return;
+  last_id_ = last_frame->shell->id;
+  DSOCameraParams params(HCalib);
+  // camToWorld = frame->camToWorld;
+  PointCloud::Ptr cloud(new PointCloud());
+  for (dso::PointHessian* p : last_frame->pointHessians) {
+    auto points = DSOtoPcl(p, params);
+    std::move(points.begin(), points.end(), std::back_inserter(cloud->points));
   }
+
+  for (dso::PointHessian* p : last_frame->pointHessiansMarginalized) {
+    auto points = DSOtoPcl(p, params);
+    std::move(points.begin(), points.end(), std::back_inserter(cloud->points));
+  }
+
+  sensor_msgs::PointCloud2::Ptr msg(new sensor_msgs::PointCloud2());
+  msg->header.stamp = ros::Time::now();
+  msg->header.frame_id = camera_frame_id_;
+  pcl::toROSMsg(*cloud, *msg);
+  pcl_pub_.publish(msg);
 }
 
 void ROSOutputWrapper::publishCamPose(dso::FrameShell* frame,
@@ -192,4 +195,42 @@ void ROSOutputWrapper::pushDepthImageFloat(dso::MinimalImageF* image,
   ++seq_image_;
   cv_bridge::CvImage bridge_img(header, "mono8", imverted_img);
   dso_depht_image_pub_.publish(bridge_img.toImageMsg());
+}
+
+std::vector<dso_ros::ROSOutputWrapper::Point>
+dso_ros::ROSOutputWrapper::DSOtoPcl(
+    const dso::PointHessian* pt,
+    const dso_ros::ROSOutputWrapper::DSOCameraParams& params) const
+{
+  std::vector<dso_ros::ROSOutputWrapper::Point> res;
+  float my_scaledTH = 1e10;
+  float my_absTH = 1e10;
+  float my_minRelBS = 0;
+  float depth = 1.0f / pt->idepth_scaled;
+  float depth4 = std::pow(depth, 4);
+  float var = (1.0f / (pt->idepth_hessian + 0.01));
+
+  if (pt->idepth_scaled < 0)
+    return res;
+  if (var * depth4 > my_scaledTH)
+    return res;
+
+  if (var > my_absTH)
+    return res;
+
+  if (pt->maxRelBaseline < my_minRelBS)
+    return res;
+
+  for (size_t i = 0; i < patternNum; ++i) {
+    int dx =
+        dso::staticPattern[8][i][0];  // reading from big matrix in settings.cpp
+    int dy =
+        dso::staticPattern[8][i][1];  // reading from big matrix in settings.cpp
+    Point pcl_pt;
+    pcl_pt.x = ((pt->u + dx) * params.fxi + params.cxi) * depth;
+    pcl_pt.y = ((pt->v + dy) * params.fyi + params.cyi) * depth;
+    pcl_pt.z = depth * (1 + 2 * params.fxi * (rand() / (float)RAND_MAX - 0.5f));
+    res.emplace_back(pcl_pt);
+  }
+  return res;
 }

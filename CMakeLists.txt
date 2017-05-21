@@ -11,12 +11,14 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   cv_bridge
   tf
+  pcl_conversions
 )
 
 find_package(Dso REQUIRED)
 find_package(Pangolin 0.2 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(PCL 1.7 REQUIRED COMPONENTS common)
 find_package(Boost COMPONENTS system thread)
 
 catkin_package(
@@ -47,11 +49,17 @@ include_directories(
   ${Pangolin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
+  include_directories(${PCL_INCLUDE_DIRS})
 )
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+
 add_executable(dso_node src/dso_node.cpp src/ros_output_wrapper.cpp)
 
 target_link_libraries(dso_node
     ${DSO_LIBRARIES}
     ${Pangolin_LIBRARIES}
     ${OpenCV_LIBS}
-    ${catkin_LIBRARIES})
+    ${catkin_LIBRARIES}
+    ${PCL_COMMON_LIBRARIES}
+    )
