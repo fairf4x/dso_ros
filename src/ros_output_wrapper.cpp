@@ -56,9 +56,9 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian*>& frames,
   }
 
   sensor_msgs::PointCloud2::Ptr msg(new sensor_msgs::PointCloud2());
-  msg->header.stamp = ros::Time::now();
-  msg->header.frame_id = camera_frame_id_;
   pcl::toROSMsg(*cloud, *msg);
+  msg->header.stamp = timestamp_;
+  msg->header.frame_id = camera_frame_id_;
   pcl_pub_.publish(msg);
 }
 
