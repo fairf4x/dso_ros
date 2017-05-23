@@ -174,7 +174,7 @@ world->cam based on frame->camToWorld.matrix3x4()
   double camY = m(1, 3);
   double camZ = m(2, 3);
 
-ROS_INFO("Id = %d, Trans %f, %f, %f",frame->id, m(0, 3),m(1, 3),m(2, 3));
+ROS_INFO("Id = %d, Trans %f, %f, %f",frame->id, camX, camY,camZ);
   //ROS_INFO("Cam to world \n A=%f %f %f %f\n  %f %f %f %f\n  %f %f %f %f",
 	//	m(0,0), m(0,1), m(0,2), m(0,3), 
 	//	m(1,0), m(1,1), m(1,2), m(1,3),
@@ -197,6 +197,7 @@ ROS_INFO("Id = %d, Trans %f, %f, %f",frame->id, m(0, 3),m(1, 3),m(2, 3));
   odom.header.frame_id = odom_frame_id;
 
   geometry_msgs::Pose pose;
+//  intentional swap of coordinates
   pose.position.x = camX;
   pose.position.y = camY;
   pose.position.z = camZ;

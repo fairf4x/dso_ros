@@ -211,13 +211,13 @@ int main( int argc, char** argv )
 
     if(!disableAllDisplay)
     {
-	    fullSystem->outputWrapper.push_back(new IOWrap::SampleOutputWrapper());
+	    //fullSystem->outputWrapper.push_back(new IOWrap::SampleOutputWrapper());
 
 	    fullSystem->outputWrapper.push_back(new IOWrap::ROSOutputPublisher(nh));
 
-	    fullSystem->outputWrapper.push_back(new IOWrap::PangolinDSOViewer(
-	    		 (int)undistorter->getSize()[0],
-	    		 (int)undistorter->getSize()[1]));
+	    //fullSystem->outputWrapper.push_back(new IOWrap::PangolinDSOViewer(
+	    	//	 (int)undistorter->getSize()[0],
+	    	//	 (int)undistorter->getSize()[1]));
 
     }
 
