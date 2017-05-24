@@ -1,21 +1,20 @@
-#include <dso_ros/ros_output_wrapper.h>
+ #include <dso_ros/ros_output_wrapper.h>
 
 using namespace dso_ros;
 
-ROSOutputWrapper::ROSOutputWrapper(ros::NodeHandle& n,
-                                   ros::NodeHandle& n_private)
+ROSOutputWrapper::ROSOutputWrapper(ros::NodeHandle& n)
 {
-  ROS_INFO("ROSOutputWrapper created\n");
-  if (!n_private.hasParam("dso_frame_id")) {
+  ROS_INFO("ROSNODE: ROSOutputWrapper created\n");
+  if (!n.hasParam("dso_frame_id")) {
     ROS_WARN("No param named world_frame found!");
   }
-  if (!n_private.hasParam("camera_frame_id")) {
+  if (!n.hasParam("camera_frame_id")) {
     ROS_WARN("No param named camera_frame found!");
   }
-  n_private.param<std::string>("dso_frame_id", dso_frame_id_, "dso_odom");
-  n_private.param<std::string>("camera_frame_id", camera_frame_id_, "camera");
-  n_private.param<std::string>("odom_frame_id", odom_frame_id_, "odom");
-  n_private.param<std::string>("base_frame_id", base_frame_id_, "base_link");
+  n.param<std::string>("dso_frame_id", dso_frame_id_, "dso_odom");
+  n.param<std::string>("camera_frame_id", camera_frame_id_, "camera");
+  n.param<std::string>("odom_frame_id", odom_frame_id_, "odom");
+  n.param<std::string>("base_frame_id", base_frame_id_, "base_link");
   ROS_INFO_STREAM("world_frame_id = " << dso_frame_id_ << "\n");
   ROS_INFO_STREAM("camera_frame_id = " << camera_frame_id_ << "\n");
   ROS_INFO_STREAM("base_frame_id = " << base_frame_id_ << "\n");
@@ -28,6 +27,7 @@ ROSOutputWrapper::ROSOutputWrapper(ros::NodeHandle& n,
   pose_.setIdentity();
   reset_ = false;
   last_id_ = 10;
+  ROS_INFO("ROS Wrapper created.");
 }
 
 ROSOutputWrapper::~ROSOutputWrapper()
@@ -38,6 +38,7 @@ ROSOutputWrapper::~ROSOutputWrapper()
 void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian*>& frames,
                                         bool final, dso::CalibHessian* HCalib)
 {
+  ROS_INFO_STREAM("Inside publish key frames.");
   dso::FrameHessian* last_frame = frames.back();
   if (last_frame->shell->id == last_id_)
     return;
@@ -45,6 +46,7 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian*>& frames,
   DSOCameraParams params(HCalib);
   // camToWorld = frame->camToWorld;
   PointCloud::Ptr cloud(new PointCloud());
+
   for (dso::PointHessian* p : last_frame->pointHessians) {
     auto points = DSOtoPcl(p, params);
     std::move(points.begin(), points.end(), std::back_inserter(cloud->points));
@@ -63,8 +65,10 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian*>& frames,
 }
 
 void ROSOutputWrapper::publishCamPose(dso::FrameShell* frame,
-                                      dso::CalibHessian* HCalib)
+                                      dso::CalibHessian* HCalib,
+				      Eigen::Matrix<Sophus::SE3Group<double>::Scalar, 3, 4>* transformation)
 {
+  ROS_INFO_STREAM("Inside publish key frames.");
   ROS_DEBUG_STREAM("publishCamPose called");
   tf::StampedTransform tf_odom_base;
   tf::StampedTransform tf_base_cam;
@@ -221,6 +225,7 @@ dso_ros::ROSOutputWrapper::DSOtoPcl(
   if (pt->maxRelBaseline < my_minRelBS)
     return res;
 
+  ROS_INFO("Loading points into pointcloud pointer: %d points.", patternNum);
   for (size_t i = 0; i < patternNum; ++i) {
     int dx =
         dso::staticPattern[8][i][0];  // reading from big matrix in settings.cpp

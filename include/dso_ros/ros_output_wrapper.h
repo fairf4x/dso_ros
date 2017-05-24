@@ -76,7 +76,7 @@ class ROSOutputWrapper : public dso::IOWrap::Output3DWrapper
   };
 
 public:
-  ROSOutputWrapper(ros::NodeHandle& n, ros::NodeHandle& n_private);
+  ROSOutputWrapper(ros::NodeHandle& n);
 
   virtual ~ROSOutputWrapper();
 
@@ -84,7 +84,8 @@ public:
                                 bool final, dso::CalibHessian* HCalib) override;
 
   virtual void publishCamPose(dso::FrameShell* frame,
-                              dso::CalibHessian* HCalib) override;
+                              dso::CalibHessian* HCalib, 
+			      Eigen::Matrix<Sophus::SE3Group<double>::Scalar, 3, 4>* transformation) override;
 
   virtual void pushLiveFrame(dso::FrameHessian* image) override;
 
