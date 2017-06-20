@@ -11,7 +11,8 @@ ROSOutputWrapper::ROSOutputWrapper(ros::NodeHandle& n)
   if (!n.hasParam("camera_frame_id")) {
     ROS_WARN("No param named camera_frame found!");
   }
-  n.param<std::string>("dso_frame_id", dso_frame_id_, "dso_odom");
+  n.param<std::string>("dso_frame_id", dso_frame_id_, "dso_camera");
+  n.param<std::string>("dso_frame_id_transformed", dso_frame_id_transformed_, "dso_transformed");
   n.param<std::string>("camera_frame_id", camera_frame_id_, "camera");
   n.param<std::string>("odom_frame_id", odom_frame_id_, "odom");
   n.param<std::string>("base_frame_id", base_frame_id_, "base_link");
@@ -19,7 +20,8 @@ ROSOutputWrapper::ROSOutputWrapper(ros::NodeHandle& n)
   ROS_INFO_STREAM("camera_frame_id = " << camera_frame_id_ << "\n");
   ROS_INFO_STREAM("base_frame_id = " << base_frame_id_ << "\n");
   ROS_INFO_STREAM("odom_frame_id = " << odom_frame_id_ << "\n");
-  dso_odom_pub_ = n.advertise<nav_msgs::Odometry>("odom", 5, false);
+  dso_odom_pub_ = n.advertise<nav_msgs::Odometry>("dso_odom", 5, false);
+  dso_odom_pub_transformed_ = n.advertise<nav_msgs::Odometry>("dso_transformed", 5, false);
   dso_depht_image_pub_ =
       n.advertise<sensor_msgs::Image>("image_rect", 5, false);
   pcl_pub_ = n.advertise<sensor_msgs::PointCloud2>("pcl", 5, false);
@@ -38,7 +40,7 @@ ROSOutputWrapper::~ROSOutputWrapper()
 void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian*>& frames,
                                         bool final, dso::CalibHessian* HCalib)
 {
-  ROS_INFO_STREAM("Inside publish key frames.");
+//  ROS_INFO_STREAM("Inside publish key frames.");
   dso::FrameHessian* last_frame = frames.back();
   if (last_frame->shell->id == last_id_)
     return;
@@ -60,7 +62,7 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian*>& frames,
   sensor_msgs::PointCloud2::Ptr msg(new sensor_msgs::PointCloud2());
   pcl::toROSMsg(*cloud, *msg);
   msg->header.stamp = timestamp_;
-  msg->header.frame_id = camera_frame_id_;
+  msg->header.frame_id = "base_link";//dso_frame_id_;
   pcl_pub_.publish(msg);
 }
 
@@ -68,9 +70,9 @@ void ROSOutputWrapper::publishCamPose(dso::FrameShell* frame,
                                       dso::CalibHessian* HCalib,
 				      Eigen::Matrix<Sophus::SE3Group<double>::Scalar, 3, 4>* transformation)
 {
-  ROS_INFO_STREAM("Inside publish key frames.");
-  ROS_DEBUG_STREAM("publishCamPose called");
-  tf::StampedTransform tf_odom_base;
+ // ROS_INFO_STREAM("Inside publish key frames.");
+ // ROS_DEBUG_STREAM("publishCamPose called");
+ /* tf::StampedTransform tf_odom_base;
   tf::StampedTransform tf_base_cam;
   try {
     tf_list_.waitForTransform(odom_frame_id_, base_frame_id_, timestamp_,
@@ -107,18 +109,17 @@ void ROSOutputWrapper::publishCamPose(dso::FrameShell* frame,
    * last column is translation vector
    * 3x3 matrix with diagonal m00 m11 and m22 is a rotation matrix
   */
-
+/*
   const Eigen::Matrix<Sophus::SE3Group<double>::Scalar, 3, 4> m =
       frame->camToWorld.matrix3x4();
-  /* camera position */
+  // camera position 
   double camX = m(0, 3);
   double camY = m(1, 3);
   double camZ = m(2, 3);
 
-  /* camera orientation */
-  /*
-  http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
-   */
+// camera orientation 
+  // http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
+   
   double numX = 1 + m(0, 0) - m(1, 1) - m(2, 2);
   double numY = 1 - m(0, 0) + m(1, 1) - m(2, 2);
   double numZ = 1 - m(0, 0) - m(1, 1) + m(2, 2);
@@ -128,7 +129,7 @@ void ROSOutputWrapper::publishCamPose(dso::FrameShell* frame,
   double camSZ = sqrt(std::max(0.0, numZ)) / 2;
   double camSW = sqrt(std::max(0.0, numW)) / 2;
 
-  /* broadcast map -> cam_pose transformation */
+  // broadcast map -> cam_pose transformation 
   static tf::TransformBroadcaster br;
   tf::Transform current_pose;
   current_pose.setOrigin(tf::Vector3(camX, camY, camZ));
@@ -169,6 +170,54 @@ void ROSOutputWrapper::publishCamPose(dso::FrameShell* frame,
   /*
         std::cout << frame->camToWorld.matrix3x4() << "\n";
   */
+
+  tf::StampedTransform tf_base_cam;
+
+  Eigen::Matrix<Sophus::SE3Group<double>::Scalar, 3, 4> m = *transformation;
+  double camX = m(0, 3);
+  double camY = m(1, 3);
+  double camZ = m(2, 3);
+
+ROS_INFO("Id = %d, Trans %f, %f, %f",frame->id, camX, camY,camZ);
+
+  Eigen::Quaterniond qe(m.block<3,3>(0,0));
+
+  static tf::TransformBroadcaster br;
+  tf::Transform transform;
+  transform.setOrigin(tf::Vector3(camX, camY, camZ));
+  tf::Quaternion q = tf::Quaternion(qe.x(), qe.y(), qe.z(), qe.w());
+  transform.setRotation(q);
+
+  br.sendTransform(tf::StampedTransform(transform, ros::Time::now()-ros::Duration(0.2),
+                                        odom_frame_id_, dso_frame_id_));
+
+  nav_msgs::Odometry odom;
+  odom.header.stamp = ros::Time::now();
+  odom.header.frame_id = odom_frame_id_;
+
+  geometry_msgs::Pose pose;
+  pose.position.x = camX;
+  pose.position.y = camY;
+  pose.position.z = camZ;
+  pose.orientation.x = qe.x();
+  pose.orientation.y = qe.y();
+  pose.orientation.z = qe.z();
+  pose.orientation.w = qe.w();
+
+  odom.pose.pose = pose;
+  odom.twist.twist.linear.x = pose.position.x - lastCamPose.position.x;
+  odom.twist.twist.linear.y = pose.position.y - lastCamPose.position.y;
+  odom.twist.twist.linear.z = pose.position.z - lastCamPose.position.z;
+
+  if(!std::isnan(camX)&&!std::isnan(camY)&&!std::isnan(camZ)
+&& !std::isnan(qe.x()) && !std::isnan(qe.y())&& !std::isnan(qe.z())&&!std::isnan(qe.w())
+&&!std::isinf(camX)&&!std::isinf(camY)&&!std::isinf(camZ)
+&& !std::isinf(qe.x()) && !std::isinf(qe.y())&& !std::isinf(qe.z())&&!std::isinf(qe.w()))
+{
+  dso_odom_pub_.publish(odom);
+}
+
+lastCamPose = pose;
 }
 
 void ROSOutputWrapper::pushLiveFrame(dso::FrameHessian* image)
@@ -232,9 +281,27 @@ dso_ros::ROSOutputWrapper::DSOtoPcl(
     int dy =
         dso::staticPattern[8][i][1];  // reading from big matrix in settings.cpp
     Point pcl_pt;
-    pcl_pt.x = ((pt->u + dx) * params.fxi + params.cxi) * depth;
-    pcl_pt.y = ((pt->v + dy) * params.fyi + params.cyi) * depth;
-    pcl_pt.z = depth * (1 + 2 * params.fxi * (rand() / (float)RAND_MAX - 0.5f));
+//    pcl_pt.x = ((pt->u + dx) * params.fxi + params.cxi) * depth;
+//    pcl_pt.y = ((pt->v + dy) * params.fyi + params.cyi) * depth;
+//    pcl_pt.z = (1 + 2 * params.fxi * (rand() / (float)RAND_MAX - 0.5f)) * depth;
+
+tf::Vector3 working(((pt->u + dx) * params.fxi + params.cxi) * depth, 
+			((pt->v + dy) * params.fyi + params.cyi) * depth,
+
+
+			(1 + 2 * params.fxi * (rand() / (float)RAND_MAX - 0.5f)) * depth);
+
+//working = working.rotate(tf::Vector3(0,0,1), 2.1);
+working = working.rotate(tf::Vector3(0,1,0), 1.8);
+
+pcl_pt.x = working.getX()*8;// + 0.6;
+pcl_pt.y = working.getY()*8;// - 0.35;
+pcl_pt.z = working.getZ()*2;// + 1.65;
+
+    pcl_pt.r = 0;
+    pcl_pt.g = 255;
+    pcl_pt.b = 0;
+
     res.emplace_back(pcl_pt);
   }
   return res;

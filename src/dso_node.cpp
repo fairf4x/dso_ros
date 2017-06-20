@@ -5,9 +5,9 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "dso_node");
   ros::NodeHandle nh;
   ros::NodeHandle nh_private("~");
-  //ros::MultiThreadedSpinner spinner(2);
+  ros::MultiThreadedSpinner spinner(2);
   dso_ros::DsoNode node(nh, nh_private);
-  ros::spin();
+  spinner.spin();
   // node.run();
   return 0;
 }
@@ -46,8 +46,6 @@ dso_ros::DsoNode::~DsoNode()
 
 void dso_ros::DsoNode::imageCb(const sensor_msgs::ImageConstPtr &img)
 {
-	ROS_INFO("Image callback activated.");
-
   dynamic_cast<ROSOutputWrapper *>(full_system_->outputWrapper[0])
       ->pushTimestamp(img->header.stamp);
   // this is needed to avoid initial freeze of whole algorithm. I don't know why
@@ -64,8 +62,8 @@ void dso_ros::DsoNode::imageCb(const sensor_msgs::ImageConstPtr &img)
     ROS_ERROR_STREAM("[DSO_ROS]: System reset requested from DSO");
     reset();
   } else if (full_system_->initFailed) {
-    ROS_ERROR_STREAM("[DSO_ROS]: DSO init failed");
-    reset();
+    //ROS_ERROR_STREAM("[DSO_ROS]: DSO init failed");
+    //reset();
   } else if (full_system_->isLost) {
     ROS_ERROR_STREAM("[DSO_ROS]: DSO LOST");
     reset();
@@ -78,8 +76,6 @@ void dso_ros::DsoNode::imageCb(const sensor_msgs::ImageConstPtr &img)
   undist_img->timestamp = img->header.stamp.toSec();
   full_system_->addActiveFrame(undist_img.get(), frame_ID_);
   ++frame_ID_;
-
-	ROS_INFO("Image callback finished.");
 }
 
 void dso_ros::DsoNode::initParams()

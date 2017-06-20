@@ -112,11 +112,13 @@ public:
 private:
   /* camera frame id */
   std::string dso_frame_id_;
+  std::string dso_frame_id_transformed_;
   std::string camera_frame_id_;
   std::string odom_frame_id_;
   std::string base_frame_id_;
   /* dso odometry_msg */
   ros::Publisher dso_odom_pub_;
+  ros::Publisher dso_odom_pub_transformed_;
   ros::Publisher dso_depht_image_pub_;
   ros::Publisher pcl_pub_;
   tf::TransformListener tf_list_;
@@ -132,6 +134,11 @@ private:
 
   std::vector<Point> DSOtoPcl(const dso::PointHessian* pt,
                               const DSOCameraParams& params) const;
+
+geometry_msgs::Pose lastCamPose;
+geometry_msgs::Pose lastCamPoseTransformed;
+geometry_msgs::Pose lastCamPoseRotated;
+
 };
 }
 #endif  // DSO_ROS_ROS_IO_WRAPPER
