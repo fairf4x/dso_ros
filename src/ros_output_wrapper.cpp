@@ -16,10 +16,23 @@ ROSOutputWrapper::ROSOutputWrapper(ros::NodeHandle& n)
   n.param<std::string>("camera_frame_id", camera_frame_id_, "camera");
   n.param<std::string>("odom_frame_id", odom_frame_id_, "odom");
   n.param<std::string>("base_frame_id", base_frame_id_, "base_link");
+
+  n.param<double>("dso_base_tr_x_translation", x_translation_, 0.0);
+  n.param<double>("dso_base_tr_y_translation", y_translation_, 0.0);
+  n.param<double>("dso_base_tr_z_translation", z_translation_, 0.0);
+  n.param<double>("dso_base_tr_x_rotation", x_axis_rotation_, 0.0);
+  n.param<double>("dso_base_tr_y_rotation", y_axis_rotation_, 0.0);
+  n.param<double>("dso_base_tr_z_rotation", z_axis_rotation_, 0.0);
+  n.param<double>("dso_base_tr_x_scale", x_scale_, 1.0);
+  n.param<double>("dso_base_tr_y_scale", y_scale_, 1.0);
+  n.param<double>("dso_base_tr_z_scale", z_scale_, 1.0);
+
   ROS_INFO_STREAM("world_frame_id = " << dso_frame_id_ << "\n");
   ROS_INFO_STREAM("camera_frame_id = " << camera_frame_id_ << "\n");
   ROS_INFO_STREAM("base_frame_id = " << base_frame_id_ << "\n");
   ROS_INFO_STREAM("odom_frame_id = " << odom_frame_id_ << "\n");
+  ROS_INFO_STREAM("pointcloud rotation is " << x_axis_rotation_ << " " << y_axis_rotation_ << " " << z_axis_rotation_ << "\n");
+  ROS_INFO_STREAM("pointcloud scale is " << x_scale_ << " " << y_scale_ << " " << z_scale_ << "\n");
   dso_odom_pub_ = n.advertise<nav_msgs::Odometry>("dso_odom", 5, false);
   dso_odom_pub_transformed_ = n.advertise<nav_msgs::Odometry>("dso_transformed", 5, false);
   dso_depht_image_pub_ =
@@ -62,7 +75,8 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian*>& frames,
   sensor_msgs::PointCloud2::Ptr msg(new sensor_msgs::PointCloud2());
   pcl::toROSMsg(*cloud, *msg);
   msg->header.stamp = timestamp_;
-  msg->header.frame_id = "base_link";//dso_frame_id_;
+  msg->header.frame_id = "base_link";//dso_frame_id_; "base_link"
+  msg->is_dense = false;
   pcl_pub_.publish(msg);
 }
 
@@ -178,7 +192,7 @@ void ROSOutputWrapper::publishCamPose(dso::FrameShell* frame,
   double camY = m(1, 3);
   double camZ = m(2, 3);
 
-ROS_INFO("Id = %d, Trans %f, %f, %f",frame->id, camX, camY,camZ);
+//ROS_INFO("Id = %d, Trans %f, %f, %f",frame->id, camX, camY,camZ);
 
   Eigen::Quaterniond qe(m.block<3,3>(0,0));
 
@@ -274,7 +288,7 @@ dso_ros::ROSOutputWrapper::DSOtoPcl(
   if (pt->maxRelBaseline < my_minRelBS)
     return res;
 
-  ROS_INFO("Loading points into pointcloud pointer: %d points.", patternNum);
+  //ROS_INFO("Loading points into pointcloud pointer: %d points.", patternNum);
   for (size_t i = 0; i < patternNum; ++i) {
     int dx =
         dso::staticPattern[8][i][0];  // reading from big matrix in settings.cpp
@@ -291,16 +305,18 @@ tf::Vector3 working(((pt->u + dx) * params.fxi + params.cxi) * depth,
 
 			(1 + 2 * params.fxi * (rand() / (float)RAND_MAX - 0.5f)) * depth);
 
-//working = working.rotate(tf::Vector3(0,0,1), 2.1);
-working = working.rotate(tf::Vector3(0,1,0), 1.8);
 
-pcl_pt.x = working.getX()*8;// + 0.6;
-pcl_pt.y = working.getY()*8;// - 0.35;
-pcl_pt.z = working.getZ()*2;// + 1.65;
+working = working.rotate(tf::Vector3(1,0,0), x_axis_rotation_);
+working = working.rotate(tf::Vector3(0,1,0), y_axis_rotation_);
+working = working.rotate(tf::Vector3(0,0,1), z_axis_rotation_);
 
-    pcl_pt.r = 0;
+pcl_pt.x = working.getX() * x_scale_ + x_translation_;// + 0.6;
+pcl_pt.y = working.getY() * y_scale_ + y_translation_;// - 0.35;
+pcl_pt.z = working.getZ() * z_scale_ + z_translation_;// + 1.65;
+
+    pcl_pt.r = 255;
     pcl_pt.g = 255;
-    pcl_pt.b = 0;
+    pcl_pt.b = 255;
 
     res.emplace_back(pcl_pt);
   }

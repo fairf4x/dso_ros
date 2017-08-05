@@ -124,6 +124,17 @@ private:
   tf::TransformListener tf_list_;
   tf::TransformBroadcaster tf_broadcast_;
 
+  // dso transform
+  double x_translation_;
+  double y_translation_;
+  double z_translation_;
+  double x_axis_rotation_;
+  double y_axis_rotation_;
+  double z_axis_rotation_;
+  double x_scale_;
+  double y_scale_;
+  double z_scale_;
+
   tf::Transform last_pose_;
   tf::Transform pose_;
 
